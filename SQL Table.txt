@@ -1,0 +1,43 @@
+CREATE DATABASE sapovn;
+USE sapovn;
+
+DROP TABLE IF EXISTS session;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS admin;
+
+-- Tạo bảng users
+CREATE TABLE users (
+    Id INT PRIMARY KEY AUTO_INCREMENT,
+    Email VARCHAR(255) UNIQUE NOT NULL,
+    SDT VARCHAR(15) NOT NULL,
+    UserName VARCHAR(100) UNIQUE NOT NULL,
+    Password VARCHAR(255) NOT NULL
+) ENGINE=InnoDB;
+
+-- Tạo bảng session (quản lý phiên đăng nhập)
+CREATE TABLE session (
+    SessionId INT PRIMARY KEY AUTO_INCREMENT,
+    UserId INT NULL, -- Cho phép NULL nếu user bị xóa
+    LoginTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (UserId) REFERENCES users(Id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Tạo bảng admin
+CREATE TABLE admin (
+    TenDangNhap VARCHAR(28) PRIMARY KEY,
+    MatKhau VARCHAR(28) NOT NULL,
+    XacThuc VARCHAR(28) NOT NULL
+) ENGINE=InnoDB;
+
+
+
+CREATE TABLE DichVu( 
+    IdDichVu INT PRIMARY KEY AUTO_INCREMENT, 
+    Ten VARCHAR(255) NOT NULL, 
+    Gia DECIMAL(10, 0) NOT NULL, 
+    HinhAnh varchar(255) NOT NULL, 
+    MaSP VARCHAR(255) NOT NULL, 
+    prefix VARCHAR(100) NOT NULL, 
+    TenDanhMuc VARCHAR(255) NOT NULL, 
+    DaXoa BOOLEAN DEFAULT 0 
+);

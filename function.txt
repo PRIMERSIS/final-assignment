@@ -1,0 +1,251 @@
+USE sapovn;
+DROP PROCEDURE IF EXISTS sp_ShowDichVu;
+DROP PROCEDURE IF EXISTS sp_InsertDichVu;
+DROP PROCEDURE IF EXISTS sp_UpdateDichVu;
+DROP PROCEDURE IF EXISTS sp_DeleteDichVu;
+DROP PROCEDURE IF EXISTS sp_TimKiemSanPhamTheoTen;
+DROP PROCEDURE IF EXISTS sp_LocSanPham;
+DROP PROCEDURE IF EXISTS KiemTraDangNhap;
+DROP PROCEDURE IF EXISTS sp_RegisterUsers;
+DROP PROCEDURE IF EXISTS sp_CheckLogin;
+DROP PROCEDURE IF EXISTS KiemTraDangNhap;
+DROP PROCEDURE IF EXISTS sp_RegisterUsers;
+DROP PROCEDURE IF EXISTS sp_CheckLogin;
+
+
+DELIMITER //
+CREATE PROCEDURE sp_ShowDichVu()
+BEGIN
+    SELECT * FROM DichVu WHERE DaXoa = 0;
+END //
+DELIMITER ;
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_InsertDichVu(
+    IN p_Ten VARCHAR(255), 
+    IN p_Gia DECIMAL(10, 0),
+    IN p_HinhAnh VARCHAR(255),
+    IN p_Prefix VARCHAR(100),
+    IN p_TenDanhMuc VARCHAR(255)
+)
+BEGIN
+    DECLARE v_MaxSuffix INT;    – Biến lưu số thứ tự lớn nhất hiện tại của mã sản phẩm.
+    DECLARE v_MaSP VARCHAR(255);--Biến lưu mã sản phẩm mới.
+
+    -- Lấy số lớn nhất hiện có với Prefix
+    SELECT IFNULL(MAX(CAST(SUBSTRING(MaSP, LENGTH(p_Prefix) + 1) AS UNSIGNED)), 0) 
+    INTO v_MaxSuffix
+    FROM DichVu 
+    WHERE prefix = p_Prefix;
+
+    -- Tạo mã sản phẩm mới với số tăng dần
+    SET v_MaSP = CONCAT(p_Prefix, LPAD(v_MaxSuffix + 1, 3, '0'));
+
+    -- Chèn dữ liệu vào bảng DichVu
+    INSERT INTO DichVu (Ten, Gia, HinhAnh, MaSP, prefix, TenDanhMuc, DaXoa)
+    VALUES (p_Ten, p_Gia, p_HinhAnh, v_MaSP, p_Prefix, p_TenDanhMuc, 0);
+END //
+
+DELIMITER ;
+
+
+DELIMITER //
+CREATE PROCEDURE sp_DeleteDichVu(
+    IN p_IdDichVu INT
+)
+BEGIN
+    -- Xóa sản phẩm có IdDichVu được truyền vào
+    DELETE FROM DichVu WHERE IdDichVu = p_IdDichVu;
+
+    -- Cập nhật lại IdDichVu để sắp xếp lại thứ tự liên tục
+    SET @count = 0;
+    UPDATE DichVu SET IdDichVu = (@count := @count + 1) ORDER BY IdDichVu;
+
+    -- Đặt lại giá trị AUTO_INCREMENT để tiếp tục từ giá trị lớn nhất hiện tại + 1
+    SET @max_id = (SELECT MAX(IdDichVu) FROM DichVu);
+    IF @max_id IS NOT NULL THEN
+        SET @stmt = CONCAT('ALTER TABLE DichVu AUTO_INCREMENT = ', @max_id + 1);
+    ELSE
+        SET @stmt = 'ALTER TABLE DichVu AUTO_INCREMENT = 1';
+    END IF;
+    
+    PREPARE stmt FROM @stmt;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+END //
+
+DELIMITER ;
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_UpdateDichVu(
+    IN p_IdDichVu INT,
+    IN p_Ten VARCHAR(255),
+    IN p_Gia DECIMAL(10, 0),
+    IN p_HinhAnh VARCHAR(255),
+    IN p_Prefix VARCHAR(100),
+    IN p_TenDanhMuc VARCHAR(255)
+)
+BEGIN
+    DECLARE v_OldPrefix VARCHAR(100);
+    DECLARE v_OldMaSP VARCHAR(255);
+    DECLARE v_NewMaSP VARCHAR(255);
+    DECLARE v_MaxSuffix INT;
+    DECLARE v_RowNum INT DEFAULT 0;
+    DECLARE v_Id INT;
+    DECLARE done INT DEFAULT 0;
+    DECLARE cur CURSOR FOR SELECT IdDichVu FROM DichVu WHERE prefix = v_OldPrefix ORDER BY IdDichVu;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+    -- Lấy mã prefix và mã sản phẩm cũ
+    SELECT prefix, MaSP INTO v_OldPrefix, v_OldMaSP FROM DichVu WHERE IdDichVu = p_IdDichVu;
+
+    -- Cập nhật sản phẩm
+    UPDATE DichVu
+    SET 
+        Ten = COALESCE(p_Ten, Ten),
+        Gia = COALESCE(p_Gia, Gia),
+        HinhAnh = COALESCE(p_HinhAnh, HinhAnh),
+        Prefix = COALESCE(p_Prefix, Prefix),
+        TenDanhMuc = COALESCE(p_TenDanhMuc, TenDanhMuc)
+    WHERE IdDichVu = p_IdDichVu;
+
+    -- Nếu mã prefix thay đổi, cập nhật lại mã sản phẩm
+    IF p_Prefix IS NOT NULL AND p_Prefix != v_OldPrefix THEN
+        -- Lấy số lớn nhất hiện có với prefix mới
+        SELECT IFNULL(MAX(CAST(SUBSTRING(MaSP, LENGTH(p_Prefix) + 1) AS UNSIGNED)), 0) 
+        INTO v_MaxSuffix
+        FROM DichVu 
+        WHERE prefix = p_Prefix;
+
+        -- Tạo mã sản phẩm mới với số tăng dần
+        SET v_NewMaSP = CONCAT(p_Prefix, LPAD(v_MaxSuffix + 1, 3, '0'));
+
+        -- Cập nhật mã sản phẩm mới
+        UPDATE DichVu
+        SET MaSP = v_NewMaSP
+        WHERE IdDichVu = p_IdDichVu;
+
+        -- Sắp xếp lại mã sản phẩm của các sản phẩm có mã prefix cũ
+        OPEN cur;
+
+        read_loop: LOOP
+            FETCH cur INTO v_Id;
+            IF done THEN
+                LEAVE read_loop;
+            END IF;
+            SET v_RowNum = v_RowNum + 1;
+            UPDATE DichVu
+            SET MaSP = CONCAT(v_OldPrefix, LPAD(v_RowNum, 3, '0'))
+            WHERE IdDichVu = v_Id;
+        END LOOP;
+
+        CLOSE cur;
+    END IF;
+END //
+
+DELIMITER ;
+
+
+
+
+
+DELIMITER //
+
+CREATE PROCEDURE sp_TimKiemSanPhamTheoTen(
+    IN p_Ten VARCHAR(255)
+)
+BEGIN
+    SELECT * FROM DichVu
+    WHERE Ten LIKE CONCAT('%', p_Ten, '%') AND DaXoa = 0;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE sp_LocSanPham(
+    IN p_Prefix VARCHAR(100),
+    IN p_TenDanhMuc VARCHAR(255),
+    IN p_GiaTu DECIMAL(10, 0),
+    IN p_GiaDen DECIMAL(10, 0)
+)
+BEGIN
+    SELECT * FROM DichVu
+    WHERE DaXoa = 0
+    AND (p_Prefix IS NULL OR prefix = p_Prefix)
+    AND (p_TenDanhMuc IS NULL OR TenDanhMuc = p_TenDanhMuc)
+    AND (p_GiaTu IS NULL OR Gia >= p_GiaTu)
+    AND (p_GiaDen IS NULL OR Gia <= p_GiaDen);
+END //
+
+DELIMITER ;
+
+
+
+
+
+
+DELIMITER //
+CREATE PROCEDURE KiemTraDangNhap(
+    IN p_TenDangNhap VARCHAR(28),
+    IN p_MatKhau VARCHAR(28)
+)
+BEGIN
+    SELECT COUNT(*) AS Result
+    FROM admin
+    WHERE TenDangNhap = p_TenDangNhap AND MatKhau = p_MatKhau;
+END //
+DELIMITER ;
+DELIMITER //
+CREATE PROCEDURE sp_RegisterUser(
+    IN p_Email VARCHAR(255),
+    IN p_SDT VARCHAR(15),
+    IN p_UserName VARCHAR(50),
+    IN p_Password VARCHAR(255)
+)
+BEGIN
+    -- Kiểm tra xem email hoặc username đã tồn tại chưa
+    IF EXISTS (SELECT 1 FROM users WHERE Email = p_Email OR UserName = p_UserName) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Email hoặc Username đã tồn tại!';
+    ELSE
+        -- Mã hóa mật khẩu trước khi lưu
+        INSERT INTO users (Email, SDT, UserName, Password)
+        VALUES (p_Email, p_SDT, p_UserName, SHA2(p_Password, 256));
+    END IF;
+END //
+DELIMITER ;
+DELIMITER //
+CREATE PROCEDURE sp_CheckLogin(
+    IN p_Email VARCHAR(255),
+    IN p_Password VARCHAR(255),
+    OUT p_Message VARCHAR(255)
+)
+BEGIN
+    DECLARE v_UserId INT;
+    DECLARE v_PasswordHash VARCHAR(255);
+
+    -- Tìm UserId và Hash Password từ bảng users
+    SELECT Id, Password INTO v_UserId, v_PasswordHash
+    FROM users
+    WHERE Email = p_Email;
+
+    -- Kiểm tra xem có user không
+    IF v_UserId IS NULL THEN
+        SET p_Message = 'Email không tồn tại!';
+    ELSE
+        -- So sánh mật khẩu nhập vào với mật khẩu trong DB
+        IF v_PasswordHash = SHA2(p_Password, 256) THEN
+            -- Nếu đúng, tạo session và trả về thông báo đăng nhập thành công
+            INSERT INTO session (UserId) VALUES (v_UserId);
+            SET p_Message = 'Đăng nhập thành công!';
+        ELSE
+            -- Nếu sai mật khẩu, trả về lỗi
+            SET p_Message = 'Mật khẩu không đúng!';
+        END IF;
+    END IF;
+END //
+DELIMITER ;
