@@ -1,0 +1,8 @@
+Giải thích:
+
+Kết nối đến cơ sở dữ liệu.
+Kiểm tra phương thức POST.
+Lấy dữ liệu từ form và xử lý hình ảnh.
+Kiểm tra và cập nhật prefix nếu cần.
+Gọi thủ tục lưu trữ sp_InsertDichVu để thêm sản phẩm.
+Thông báo kết quả và chuyển hướng về index.php.
